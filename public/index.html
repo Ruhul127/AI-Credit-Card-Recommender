@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Credit Card Recommender</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .card { margin-bottom: 20px; }
+    .comparison-chart { max-height: 400px; }
+    #recommendationResult { white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <h1 class="text-center mb-4">AI Credit Card Recommender</h1>
+    
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            <h3>Your Spending Habits</h3>
+          </div>
+          <div class="card-body">
+            <form id="spendingForm">
+              <div class="mb-3">
+                <label class="form-label">Monthly Spending Categories ($)</label>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label>Groceries</label>
+                    <input type="number" class="form-control" id="groceries" value="300">
+                  </div>
+                  <div class="col-md-6">
+                    <label>Dining</label>
+                    <input type="number" class="form-control" id="dining" value="200">
+                  </div>
+                  <div class="col-md-6">
+                    <label>Gas</label>
+                    <input type="number" class="form-control" id="gas" value="150">
+                  </div>
+                  <div class="col-md-6">
+                    <label>Travel</label>
+                    <input type="number" class="form-control" id="travel" value="100">
+                  </div>
+                  <div class="col-md-6">
+                    <label>Other</label>
+                    <input type="number" class="form-control" id="other" value="250">
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label">Preferences</label>
+                <select class="form-select mb-2" id="rewardsPreference">
+                  <option value="cashback">Cash Back</option>
+                  <option value="points">Travel Points</option>
+                  <option value="any">Any Reward Type</option>
+                </select>
+                
+                <select class="form-select mb-2" id="feePreference">
+                  <option value="no_fee">No Annual Fee</option>
+                  <option value="low_fee">Low Annual Fee (<$100)</option>
+                  <option value="premium">Premium Card (Any Fee)</option>
+                </select>
+                
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="travelPerks">
+                  <label class="form-check-label">Travel Perks Important</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="extendedWarranty">
+                  <label class="form-check-label">Purchase Protection Important</label>
+                </div>
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label">Any Specific Questions?</label>
+                <textarea class="form-control" id="specificQuestions" rows="2" placeholder="E.g. Which card gives the most value for my grocery spending?"></textarea>
+              </div>
+              
+              <button type="submit" class="btn btn-primary">Get AI Recommendations</button>
+            </form>
+          </div>
+        </div>
+        
+        <div class="card mt-4">
+          <div class="card-header bg-success text-white">
+            <h3>What-if Calculator</h3>
+          </div>
+          <div class="card-body">
+            <form id="calculatorForm">
+              <div class="mb-3">
+                <label class="form-label">Select Card</label>
+                <select class="form-select" id="calculatorCard">
+                  <!-- Filled by JavaScript -->
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Estimated Monthly Spending ($)</label>
+                <input type="number" class="form-control" id="calculatorSpending" value="1000">
+              </div>
+              <button type="submit" class="btn btn-success">Calculate Rewards</button>
+            </form>
+            
+            <div id="calculatorResults" class="mt-3 d-none">
+              <h5>Projected Annual Rewards</h5>
+              <canvas id="rewardsChart" class="comparison-chart"></canvas>
+              <div id="calculatorDetails" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header bg-info text-white">
+            <h3>AI Recommendations</h3>
+          </div>
+          <div class="card-body">
+            <div id="recommendationResult" class="p-3 bg-light rounded">
+              <p class="text-muted">Submit your spending habits to get AI-powered credit card recommendations.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card mt-4">
+          <div class="card-header bg-warning text-dark">
+            <h3>Card Comparison</h3>
+          </div>
+          <div class="card-body">
+            <div id="comparisonResults">
+              <p class="text-muted">Top recommended cards will appear here for comparison.</p>
+            </div>
+            <canvas id="comparisonChart" class="comparison-chart d-none"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Load cards for calculator dropdown
+      fetch('/api/cards')
+        .then(response => response.json())
+        .then(cards => {
+          const select = document.getElementById('calculatorCard');
+          cards.forEach(card => {
+            const option = document.createElement('option');
+            option.value = card.id;
+            option.textContent = `${card.name} (${card.issuer})`;
+            select.appendChild(option);
+          });
+        });
+      
+      // Spending form submission
+      document.getElementById('spendingForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const spendingHabits = {
+          groceries: parseFloat(document.getElementById('groceries').value),
+          dining: parseFloat(document.getElementById('dining').value),
+          gas: parseFloat(document.getElementById('gas').value),
+          travel: parseFloat(document.getElementById('travel').value),
+          other: parseFloat(document.getElementById('other').value)
+        };
+        
+        const preferences = {
+          rewardsType: document.getElementById('rewardsPreference').value,
+          feePreference: document.getElementById('feePreference').value,
+          travelPerks: document.getElementById('travelPerks').checked,
+          extendedWarranty: document.getElementById('extendedWarranty').checked,
+          specificQuestions: document.getElementById('specificQuestions').value
+        };
+        
+        fetch('/api/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ spendingHabits, preferences })
+        })
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('recommendationResult').innerHTML = 
+            `<strong>AI Recommendation:</strong><br>${data.recommendation}`;
+          
+          // In a full app, we would parse the recommendation to show comparison
+          // For now, we'll just show all cards for comparison
+          showCardComparison();
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          document.getElementById('recommendationResult').innerHTML = 
+            'Error getting recommendations. Please try again.';
+        });
+      });
+      
+      // Calculator form submission
+      document.getElementById('calculatorForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const cardId = document.getElementById('calculatorCard').value;
+        const monthlySpending = parseFloat(document.getElementById('calculatorSpending').value);
+        
+        fetch('/api/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cardId, monthlySpending })
+        })
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('calculatorResults').classList.remove('d-none');
+          
+          // Update chart
+          updateRewardsChart(data);
+          
+          // Update details
+          document.getElementById('calculatorDetails').innerHTML = `
+            <p><strong>${data.cardName}</strong></p>
+            <p>Annual ${data.rewardsType === 'cashback' ? 'Cash Back' : 'Points Value'}: $${data.annualRewards}</p>
+            <p>Annual Fee: $${data.annualFee}</p>
+            <p>Net Annual Value: $${data.netValue}</p>
+          `;
+        });
+      });
+      
+      // Function to show card comparison
+      function showCardComparison() {
+        fetch('/api/cards')
+          .then(response => response.json())
+          .then(cards => {
+            const comparisonDiv = document.getElementById('comparisonResults');
+            comparisonDiv.innerHTML = '';
+            
+            // Create a table to compare cards
+            const table = document.createElement('table');
+            table.className = 'table table-striped';
+            
+            // Table header
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+              <tr>
+                <th>Card</th>
+                <th>Annual Fee</th>
+                <th>Rewards Rate</th>
+                <th>Best For</th>
+                <th>Perks</th>
+              </tr>
+            `;
+            table.appendChild(thead);
+            
+            // Table body
+            const tbody = document.createElement('tbody');
+            cards.forEach(card => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td><strong>${card.name}</strong><br><small>${card.issuer}</small></td>
+                <td>$${card.annualFee}</td>
+                <td>${card.rewardsRate}% ${card.rewardsType}</td>
+                <td>${card.bestFor.join(', ')}</td>
+                <td><small>${card.perks.join(', ')}</small></td>
+              `;
+              tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            comparisonDiv.appendChild(table);
+            
+            // Show comparison chart
+            updateComparisonChart(cards);
+          });
+      }
+      
+      // Function to update rewards chart for calculator
+      function updateRewardsChart(data) {
+        const ctx = document.getElementById('rewardsChart').getContext('2d');
+        
+        // Destroy previous chart if it exists
+        if (window.rewardsChart) {
+          window.rewardsChart.destroy();
+        }
+        
+        window.rewardsChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Annual Rewards', 'Annual Fee', 'Net Value'],
+            datasets: [{
+              label: 'USD ($)',
+              data: [data.annualRewards, data.annualFee, data.netValue],
+              backgroundColor: [
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(54, 162, 235, 0.6)'
+              ],
+              borderColor: [
+                'rgba(75, 192, 192, 1)',
+                'rgba(255, 99, 132, 1)',
+                'rgba(54, 162, 235, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      }
+      
+      // Function to update comparison chart
+      function updateComparisonChart(cards) {
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        document.getElementById('comparisonChart').classList.remove('d-none');
+        
+        // Destroy previous chart if it exists
+        if (window.comparisonChart) {
+          window.comparisonChart.destroy();
+        }
+        
+        window.comparisonChart = new Chart(ctx, {
+          type: 'radar',
+          data: {
+            labels: ['Rewards Rate', 'Annual Fee', 'Travel Perks', 'Purchase Protection', 'Bonus Value'],
+            datasets: cards.map(card => {
+              // Simple scoring for demo purposes
+              const travelPerksScore = card.perks.some(p => p.toLowerCase().includes('travel') || 
+                p.toLowerCase().includes('airport')) ? 8 : 3;
+              const protectionScore = card.perks.some(p => p.toLowerCase().includes('protection') || 
+                p.toLowerCase().includes('warranty')) ? 8 : 3;
+              const bonusScore = card.bonus ? 6 : 2;
+              
+              return {
+                label: card.name,
+                data: [
+                  card.rewardsRate,
+                  Math.max(0, 10 - card.annualFee / 25), // Inverse of fee (higher is better)
+                  travelPerksScore,
+                  protectionScore,
+                  bonusScore
+                ],
+                backgroundColor: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.2)`,
+                borderColor: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 1)`,
+                pointBackgroundColor: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 1)`,
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 1)`
+              };
+            })
+          },
+          options: {
+            responsive: true,
+            scales: {
+              r: {
+                angleLines: { display: true },
+                suggestedMin: 0,
+                suggestedMax: 10
+              }
+            }
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
