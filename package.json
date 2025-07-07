@@ -1,0 +1,26 @@
+{
+  "name": "ai-credit-card-recommender",
+  "version": "1.0.0",
+  "description": "\"# AI-Credit-Card-Recommender\"",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ruhul127/AI-Credit-Card-Recommender.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ruhul127/AI-Credit-Card-Recommender/issues"
+  },
+  "homepage": "https://github.com/Ruhul127/AI-Credit-Card-Recommender#readme",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "body-parser": "^2.2.0",
+    "dotenv": "^17.0.1",
+    "express": "^5.1.0"
+  }
+}
